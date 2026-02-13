@@ -1,0 +1,134 @@
+import { Engine } from '../../engine';
+import { ENGINE_IDS, SIGNAL_PRIORITIES } from '../../constants';
+import type { Signal, SignalType, SelfState } from '../../types';
+
+interface BoundRepresentation {
+  content: string;
+  context: string[];
+  selfState: SelfState;
+  timestamp: number;
+  needsClaude: boolean;
+}
+
+interface ActionDecision {
+  action: 'respond' | 'think' | 'observe' | 'wait';
+  content: string;
+  context: string[];
+  selfState: SelfState;
+  timestamp: number;
+}
+
+export class ArbiterEngine extends Engine {
+  private pendingDecisions: BoundRepresentation[] = [];
+  private lastResponseTime = 0;
+  private waitingForClaude = false;
+
+  constructor() {
+    super(ENGINE_IDS.ARBITER);
+  }
+
+  protected subscribesTo(): SignalType[] {
+    return [
+      'bound-representation',
+      'claude-response',
+      'value-violation',
+      'safety-alert',
+      'empathic-state',
+      'hope-worry-update',
+    ];
+  }
+
+  protected process(signals: Signal[]): void {
+    for (const signal of signals) {
+      if (signal.type === 'bound-representation') {
+        this.pendingDecisions.push(signal.payload as BoundRepresentation);
+      } else if (signal.type === 'claude-response') {
+        this.waitingForClaude = false;
+        const response = signal.payload as { text: string; emotionShift?: Partial<SelfState> };
+
+        // Apply emotion shift from Claude's reasoning
+        if (response.emotionShift) {
+          this.selfState.applyShift(response.emotionShift);
+        }
+
+        // Output the response
+        this.emit('voice-output', {
+          text: response.text,
+          timestamp: Date.now(),
+        }, {
+          target: ENGINE_IDS.VOICE,
+          priority: SIGNAL_PRIORITIES.HIGH,
+        });
+
+        // Notify expression engine
+        this.emit('expression-update', {
+          speaking: true,
+          text: response.text,
+        }, {
+          target: ENGINE_IDS.EXPRESSION,
+          priority: SIGNAL_PRIORITIES.MEDIUM,
+        });
+
+        // Score for memory write
+        this.emit('memory-significance', {
+          content: response.text,
+          type: 'response',
+          significance: 0.6,
+        }, {
+          target: ENGINE_IDS.MEMORY_WRITE,
+          priority: SIGNAL_PRIORITIES.LOW,
+        });
+
+        this.debugInfo = `Response: "${response.text.slice(0, 30)}..."`;
+        this.lastResponseTime = Date.now();
+      } else if (signal.type === 'value-violation') {
+        // Values engine vetoed — suppress the response
+        this.pendingDecisions = [];
+        this.debugInfo = 'Value violation — suppressed';
+      } else if (signal.type === 'safety-alert') {
+        // Safety override — immediate
+        this.pendingDecisions = [];
+        this.waitingForClaude = false;
+        this.debugInfo = 'Safety override';
+      }
+    }
+
+    // Process pending decisions
+    if (this.pendingDecisions.length > 0 && !this.waitingForClaude) {
+      const decision = this.pendingDecisions.shift()!;
+      this.pendingDecisions = []; // Clear others — focus on latest
+
+      if (decision.needsClaude) {
+        this.waitingForClaude = true;
+        this.status = 'waiting';
+
+        // Request Claude thinking via server
+        const actionDecision: ActionDecision = {
+          action: 'respond',
+          content: decision.content,
+          context: decision.context,
+          selfState: decision.selfState,
+          timestamp: Date.now(),
+        };
+
+        this.emit('thought', actionDecision, {
+          priority: SIGNAL_PRIORITIES.HIGH,
+        });
+
+        // Also boost engagement-related states
+        this.selfState.nudge('confidence', 0.02);
+        this.selfState.nudge('energy', -0.01);
+
+        this.debugInfo = `Thinking about: "${decision.content.slice(0, 25)}..."`;
+      } else {
+        // Simple observation, no response needed
+        this.status = 'idle';
+        this.debugInfo = 'Observing...';
+      }
+    } else if (this.waitingForClaude) {
+      this.status = 'waiting';
+    } else {
+      this.status = 'idle';
+    }
+  }
+}
