@@ -60,6 +60,7 @@ export class ArbiterEngine extends Engine {
         this.pendingDecisions.push(signal.payload as BoundRepresentation);
       } else if (signal.type === 'claude-response') {
         this.waitingForClaude = false;
+        this.pendingDecisions = [];  // Clear stale decisions — response already happened
         const response = signal.payload as { text: string; emotionShift?: Partial<SelfState> };
 
         // Apply emotion shift from Claude's reasoning

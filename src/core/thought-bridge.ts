@@ -20,6 +20,8 @@ interface ConversationEntry {
   content: string;
 }
 
+let activeInstance: ThoughtBridge | null = null;
+
 /**
  * Bridges the client-side signal bus with the server-side Claude API.
  * Listens for 'thought' signals, sends them to /api/mind/think,
@@ -30,8 +32,16 @@ export class ThoughtBridge {
   private subscriptionId: string;
   private conversationHistory: ConversationEntry[] = [];
   private processing = false;
+  private lastProcessedContent = '';
+  private lastProcessedTime = 0;
 
   constructor(bus: SignalBus) {
+    // Destroy previous instance if exists (HMR/StrictMode safety)
+    if (activeInstance) {
+      activeInstance.destroy();
+    }
+    activeInstance = this;
+
     this.bus = bus;
     this.subscriptionId = bus.subscribe(
       ENGINE_IDS.ARBITER,  // Subscribe as arbiter to get thought signals
@@ -42,9 +52,21 @@ export class ThoughtBridge {
 
   private async handleThought(signal: Signal): Promise<void> {
     if (this.processing) return; // One at a time
-    this.processing = true;
 
     const decision = signal.payload as ActionDecision;
+
+    // Deduplicate — skip if same content within 5s
+    const now = Date.now();
+    if (
+      decision.content === this.lastProcessedContent &&
+      now - this.lastProcessedTime < 5000
+    ) {
+      return;
+    }
+    this.lastProcessedContent = decision.content;
+    this.lastProcessedTime = now;
+
+    this.processing = true;
 
     // Add user message to history
     this.conversationHistory.push({
@@ -119,5 +141,8 @@ export class ThoughtBridge {
 
   destroy(): void {
     this.bus.unsubscribe(this.subscriptionId);
+    if (activeInstance === this) {
+      activeInstance = null;
+    }
   }
 }
