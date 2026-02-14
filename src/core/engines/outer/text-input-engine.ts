@@ -18,7 +18,17 @@ export class TextInputEngine extends Engine {
         // Perception gets the broadcast directly — we just track state
         this.selfState.nudge('social', 0.05);
         this.selfState.nudge('arousal', 0.03);
-        this.debugInfo = `Received: "${(signal.payload as { text: string }).text}"`;
+
+        const text = (signal.payload as { text: string }).text;
+        this.selfState.pushStream({
+          text: `Hearing: "${text}"`,
+          source: 'text-input',
+          flavor: 'emotional',
+          timestamp: Date.now(),
+          intensity: 0.6,
+        });
+
+        this.debugInfo = `Received: "${text}"`;
       }
     }
     this.status = 'idle';
