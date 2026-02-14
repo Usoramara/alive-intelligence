@@ -16,7 +16,7 @@ export class ImaginationEngine extends Engine {
   }
 
   protected subscribesTo(): SignalType[] {
-    return ['bound-representation', 'default-mode-thought', 'memory-result'];
+    return ['bound-representation', 'default-mode-thought', 'stream-thought', 'memory-result'];
   }
 
   protected process(signals: Signal[]): void {
@@ -27,6 +27,12 @@ export class ImaginationEngine extends Engine {
     }
 
     for (const signal of signals) {
+      if (signal.type === 'stream-thought') {
+        const payload = signal.payload as { thought: string };
+        this.simulateFromThought(payload.thought);
+        return;
+      }
+
       if (signal.type === 'default-mode-thought') {
         const thought = signal.payload as DefaultModeThought;
         this.simulateFromThought(thought.thought);

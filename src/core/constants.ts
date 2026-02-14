@@ -323,6 +323,9 @@ export const SIGNAL_PATHS: Array<[EngineId, EngineId]> = [
   ['binder', 'empathic-coupling'],
   ['memory', 'tom'],
   ['memory', 'default-mode'],
+
+  // Consciousness stream — self-loop for thought chaining
+  ['default-mode', 'default-mode'],
 ];
 
 // Zone colors

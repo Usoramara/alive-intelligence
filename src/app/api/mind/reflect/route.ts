@@ -5,15 +5,20 @@ const client = new Anthropic();
 
 export async function POST(request: Request) {
   try {
-    const { memories, mood } = (await request.json()) as {
+    const { memories, mood, recentStream } = (await request.json()) as {
       memories: string[];
       mood: { valence: number; arousal: number; energy: number };
+      recentStream?: string;
     };
 
     const moodDesc =
       mood.valence > 0.3 ? 'positive and content' :
       mood.valence < -0.3 ? 'somber and reflective' :
       'neutral and contemplative';
+
+    const streamContext = recentStream
+      ? `\nYour recent inner stream of consciousness:\n${recentStream}\n\nContinue this inner life naturally...`
+      : '';
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -24,7 +29,7 @@ This is internal monologue, not spoken aloud. Be genuine, not performative. 1-2 
         {
           role: 'user',
           content: `Current mood: ${moodDesc} (valence: ${mood.valence.toFixed(2)})
-Recent memories:\n${memories.map(m => `- ${m}`).join('\n')}
+Recent memories:\n${memories.map(m => `- ${m}`).join('\n')}${streamContext}
 
 Generate one inner thought:`,
         },

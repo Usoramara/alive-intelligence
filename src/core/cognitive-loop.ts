@@ -1,5 +1,6 @@
 import type { EngineId } from './constants';
-import type { MindSnapshot, Signal } from './types';
+import { SIGNAL_PRIORITIES } from './constants';
+import type { MindSnapshot, Signal, SignalType } from './types';
 import { SignalBus } from './signal-bus';
 import { SelfStateManager } from './state';
 import { Engine } from './engine';
@@ -76,6 +77,24 @@ export class CognitiveLoop {
 
     // 3. Update self-state (exponential moving average)
     const stateChanged = this.selfState.update();
+
+    // 3b. Evaluate emotional drives and emit as signals + stream entries
+    const drives = this.selfState.evaluateDrives();
+    for (const drive of drives) {
+      this.bus.emit({
+        type: 'drive-pulse' as SignalType,
+        source: 'attention',
+        payload: drive,
+        priority: SIGNAL_PRIORITIES.IDLE,
+      });
+      this.selfState.pushStream({
+        text: drive.text,
+        source: 'attention',
+        flavor: 'urge',
+        timestamp: Date.now(),
+        intensity: drive.intensity,
+      });
+    }
 
     // 4. Only rebuild snapshot & notify React periodically or when something happened
     const hasActivity = processed.length > 0 || stateChanged;

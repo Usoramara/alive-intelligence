@@ -53,6 +53,9 @@ export type SignalType =
   | 'expression-update'
   | 'motor-command'
   | 'locomotion-update'
+  // Consciousness stream signals
+  | 'stream-thought'
+  | 'drive-pulse'
   // System signals
   | 'engine-status'
   | 'persist-state'
@@ -67,6 +70,22 @@ export interface Signal<T = unknown> {
   priority: number;
   timestamp: number;
   ttl: number;  // ms until expiry
+}
+
+// ── Consciousness Stream ──
+
+export interface StreamEntry {
+  text: string;
+  source: string;
+  flavor: 'wandering' | 'emotional' | 'memory' | 'curiosity' | 'reflection' | 'urge';
+  timestamp: number;
+  intensity: number; // 0-1
+}
+
+export interface DrivePulse {
+  drive: 'explore' | 'rest' | 'process' | 'ruminate' | 'appreciate' | 'reach-out';
+  intensity: number;
+  text: string;
 }
 
 // ── Self State ──

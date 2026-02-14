@@ -9,6 +9,7 @@ import { SignalLog } from '@/components/panels/signal-log';
 import { InputPanel } from '@/components/panels/input-panel';
 import { ConversationPanel } from '@/components/panels/conversation-panel';
 import { Face } from '@/components/face/face';
+import { StreamPanel } from '@/components/panels/stream-panel';
 import type { EngineId } from '@/core/constants';
 
 export default function Home() {
@@ -45,9 +46,10 @@ export default function Home() {
             <BrainMap onSelectEngine={setSelectedEngine} />
           </div>
 
-          {/* Right sidebar — face + signal log */}
+          {/* Right sidebar — face + inner life + signal log */}
           <aside className="w-64 shrink-0 flex flex-col gap-3 overflow-y-auto scrollbar-thin">
             <Face />
+            <StreamPanel />
             <SignalLog />
           </aside>
         </div>

@@ -13,6 +13,8 @@ export class TextInputEngine extends Engine {
   protected process(signals: Signal[]): void {
     for (const signal of signals) {
       if (signal.type === 'text-input') {
+        // Mark external input for drive system timing
+        this.selfState.markExternalInput();
         // Perception gets the broadcast directly — we just track state
         this.selfState.nudge('social', 0.05);
         this.selfState.nudge('arousal', 0.03);

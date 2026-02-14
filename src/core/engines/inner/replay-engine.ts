@@ -1,7 +1,7 @@
 import { Engine } from '../../engine';
 import { ENGINE_IDS, SIGNAL_PRIORITIES } from '../../constants';
 import type { Signal, SignalType } from '../../types';
-import { getMemories, type MemoryRecord } from '@/lib/indexed-db';
+import { getMemories } from '@/lib/indexed-db';
 
 export class ReplayEngine extends Engine {
   private lastReplay = 0;
@@ -14,15 +14,23 @@ export class ReplayEngine extends Engine {
   }
 
   protected subscribesTo(): SignalType[] {
-    return ['default-mode-thought'];
+    return ['default-mode-thought', 'stream-thought'];
   }
 
   protected process(signals: Signal[]): void {
     this.consecutiveIdleFrames = 0;
 
-    // Default mode thoughts can trigger replay
     for (const signal of signals) {
-      if (signal.type === 'default-mode-thought') {
+      if (signal.type === 'stream-thought') {
+        // Stream thoughts with memory or reflection flavor trigger replay probabilistically
+        const payload = signal.payload as { flavor?: string };
+        if (payload.flavor === 'memory' || payload.flavor === 'reflection') {
+          if (Math.random() < 0.3) {
+            this.triggerReplay();
+            return;
+          }
+        }
+      } else if (signal.type === 'default-mode-thought') {
         this.triggerReplay();
         return;
       }
@@ -66,6 +74,15 @@ export class ReplayEngine extends Engine {
       }, {
         target: [ENGINE_IDS.MEMORY_WRITE, ENGINE_IDS.GROWTH],
         priority: SIGNAL_PRIORITIES.IDLE,
+      });
+
+      // Push replayed memory to consciousness stream
+      this.selfState.pushStream({
+        text: `Replaying: ${memory.content.slice(0, 80)}...`,
+        source: 'replay',
+        flavor: 'memory',
+        timestamp: now,
+        intensity: Math.min(1, memory.significance),
       });
 
       // Replaying memories slightly boosts significance (consolidation)
