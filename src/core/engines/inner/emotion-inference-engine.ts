@@ -18,10 +18,10 @@ interface EmotionDetection {
 
 // Keyword-based fast emotion detection (runs locally, no API call)
 const EMOTION_PATTERNS: Array<{ pattern: RegExp; emotion: string; valence: number; arousal: number }> = [
-  { pattern: /\b(happy|joy|glad|wonderful|great|amazing|love|excited)\b/i, emotion: 'joy', valence: 0.4, arousal: 0.3 },
-  { pattern: /\b(sad|unhappy|depressed|down|miserable|cry|crying)\b/i, emotion: 'sadness', valence: -0.4, arousal: -0.2 },
-  { pattern: /\b(angry|furious|mad|hate|rage|pissed)\b/i, emotion: 'anger', valence: -0.3, arousal: 0.5 },
-  { pattern: /\b(afraid|scared|fear|terrified|anxious|worried|nervous)\b/i, emotion: 'fear', valence: -0.3, arousal: 0.4 },
+  { pattern: /\b(happy|joy|glad|wonderful|great|amazing|love|excited|awesome|fantastic|brilliant|perfect|thrilled)\b/i, emotion: 'joy', valence: 0.4, arousal: 0.3 },
+  { pattern: /\b(sad|unhappy|depressed|down|miserable|cry|crying|miss|missed|missing|heartbroken|hurt|pain|suffer|suffering|sorrow)\b/i, emotion: 'sadness', valence: -0.4, arousal: -0.2 },
+  { pattern: /\b(angry|furious|mad|hate|rage|pissed|frustrated|annoyed|irritated|unfair|stupid|ridiculous)\b/i, emotion: 'anger', valence: -0.3, arousal: 0.5 },
+  { pattern: /\b(afraid|scared|fear|terrified|anxious|worried|nervous|panic|dread|nightmare|horror|creepy|scary)\b/i, emotion: 'fear', valence: -0.3, arousal: 0.4 },
   { pattern: /\b(surprised|shock|wow|whoa|unexpected)\b/i, emotion: 'surprise', valence: 0.1, arousal: 0.4 },
   { pattern: /\b(disgusted|gross|eww|nasty|awful)\b/i, emotion: 'disgust', valence: -0.3, arousal: 0.2 },
   { pattern: /\b(grateful|thank|appreciate|blessed)\b/i, emotion: 'gratitude', valence: 0.5, arousal: 0.1 },
@@ -30,6 +30,7 @@ const EMOTION_PATTERNS: Array<{ pattern: RegExp; emotion: string; valence: numbe
   { pattern: /\b(calm|peaceful|serene|relaxed|chill)\b/i, emotion: 'calm', valence: 0.3, arousal: -0.3 },
   { pattern: /\b(confused|lost|don't understand|what)\b/i, emotion: 'confusion', valence: -0.1, arousal: 0.1 },
   { pattern: /\b(hope|hopeful|optimistic|looking forward)\b/i, emotion: 'hope', valence: 0.3, arousal: 0.1 },
+  { pattern: /\b(died|dead|death|passed away|funeral|mourn|mourning|gone forever|grief|griev|loss|lost someone)\b/i, emotion: 'grief', valence: -0.6, arousal: -0.3 },
 ];
 
 export class EmotionInferenceEngine extends Engine {

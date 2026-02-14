@@ -102,6 +102,17 @@ export class ArbiterEngine extends Engine {
         this.waitingForClaude = true;
         this.status = 'waiting';
 
+        // Store user input to memory — emotional content gets higher significance
+        const hasEmotionalContent = /\b(died|dead|death|grief|loss|lost|sad|cry|happy|love|angry|afraid|scared|hurt|pain|miss|passed away|funeral|mourn)\b/i.test(decision.content);
+        this.emit('memory-significance', {
+          content: decision.content,
+          type: 'user-input',
+          significance: hasEmotionalContent ? 0.7 : 0.4,
+        }, {
+          target: ENGINE_IDS.MEMORY_WRITE,
+          priority: SIGNAL_PRIORITIES.LOW,
+        });
+
         // Request Claude thinking via server
         const actionDecision: ActionDecision = {
           action: 'respond',

@@ -19,14 +19,19 @@ export function Face() {
   }, []);
 
   // Map self-state to face parameters
-  const eyeOpenness = blinkPhase === 1 ? 0.05 : 0.6 + state.arousal * 0.4;
-  const mouthCurve = state.valence * 0.4; // -0.4 to 0.4
+  const sadnessEyeDroop = Math.max(0, -state.valence) * 0.15;
+  const eyeOpenness = blinkPhase === 1 ? 0.05 : Math.max(0.15, 0.6 + state.arousal * 0.4 - sadnessEyeDroop);
+  const mouthCurve = state.valence * 0.8; // -0.8 to 0.8 — doubled for expressiveness
   const browRaise = state.arousal * 0.3 + (state.curiosity > 0.6 ? 0.15 : 0);
-  const pupilSize = 3 + state.curiosity * 2 + state.arousal * 1;
+  const browSadDroop = Math.max(0, 0.3 - state.valence) * 5; // Droops below "pleasant" (0.3)
+  const pupilShrink = Math.max(0, -state.valence) * 1.5; // Pupils shrink when sad (withdrawal)
+  const pupilSize = Math.max(1.5, 3 + state.curiosity * 2 + state.arousal * 1 - pupilShrink);
+  const mouthEndpointDroop = Math.max(0, -state.valence) * 3; // Mouth corners droop when sad
 
   // Color based on emotional state
   const faceHue = 240 + state.valence * 30; // Blue spectrum
-  const glowIntensity = 0.3 + state.energy * 0.4;
+  const sadnessDim = 0.5 + Math.max(0, state.valence) * 0.5; // Dims to 0.5 at valence 0, full at valence 1
+  const glowIntensity = (0.3 + state.energy * 0.4) * sadnessDim;
 
   return (
     <div className="bg-white/5 rounded-lg p-4 backdrop-blur-sm border border-white/10">
@@ -85,13 +90,13 @@ export function Face() {
         {/* Eyebrows */}
         <line
           x1="28" y1={33 - browRaise * 12}
-          x2="44" y2={35 - browRaise * 12 - (state.valence < -0.2 ? 2 : 0)}
+          x2="44" y2={35 - browRaise * 12 + browSadDroop}
           stroke={`hsl(${faceHue}, 40%, 50%)`}
           strokeWidth="1.5"
           strokeLinecap="round"
         />
         <line
-          x1="56" y1={35 - browRaise * 12 - (state.valence < -0.2 ? 2 : 0)}
+          x1="56" y1={35 - browRaise * 12 + browSadDroop}
           x2="72" y2={33 - browRaise * 12}
           stroke={`hsl(${faceHue}, 40%, 50%)`}
           strokeWidth="1.5"
@@ -100,7 +105,7 @@ export function Face() {
 
         {/* Mouth */}
         <path
-          d={`M 38 ${62 - mouthCurve * 5} Q 50 ${62 + mouthCurve * 15} 62 ${62 - mouthCurve * 5}`}
+          d={`M 38 ${62 - mouthCurve * 5 + mouthEndpointDroop} Q 50 ${62 + mouthCurve * 15} 62 ${62 - mouthCurve * 5 + mouthEndpointDroop}`}
           fill="none"
           stroke={`hsl(${faceHue}, 50%, 55%)`}
           strokeWidth="1.5"

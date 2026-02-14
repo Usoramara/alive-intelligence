@@ -179,7 +179,7 @@ export const SELF_STATE_DEFAULTS = {
 } as const;
 
 // Damping factor for exponential moving average (0-1, lower = slower change)
-export const STATE_DAMPING = 0.15;
+export const STATE_DAMPING = 0.35;
 
 // Signal TTL in ms
 export const SIGNAL_TTL = 10000;

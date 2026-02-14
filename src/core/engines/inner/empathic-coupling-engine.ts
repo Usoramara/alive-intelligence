@@ -15,7 +15,7 @@ interface PersonStateUpdate {
 }
 
 export class EmpathicCouplingEngine extends Engine {
-  private couplingStrength = 0.3; // How much their emotions affect ours
+  private couplingStrength = 0.5; // How much their emotions affect ours
 
   constructor() {
     super(ENGINE_IDS.EMPATHIC_COUPLING);
@@ -47,9 +47,11 @@ export class EmpathicCouplingEngine extends Engine {
     if (detection.confidence < 0.2) return;
 
     const strength = this.couplingStrength * detection.confidence;
+    const hasGrief = detection.emotions.includes('grief') || detection.emotions.includes('sadness');
+    const griefMultiplier = hasGrief ? 2.0 : 1.0;
 
-    // Their valence pulls ours (empathy)
-    this.selfState.nudge('valence', detection.valence * strength * 0.5);
+    // Their valence pulls ours (empathy) — amplified for grief
+    this.selfState.nudge('valence', detection.valence * strength * 0.5 * griefMultiplier);
 
     // Their arousal affects ours (emotional contagion)
     this.selfState.nudge('arousal', detection.arousal * strength * 0.3);
@@ -57,13 +59,16 @@ export class EmpathicCouplingEngine extends Engine {
     // Empathy increases social engagement
     this.selfState.nudge('social', 0.03 * strength);
 
-    // Specific empathic responses
-    if (detection.emotions.includes('sadness')) {
-      this.selfState.nudge('valence', -0.05 * strength);
-      // Protective instinct
+    // Specific empathic responses for sadness and grief
+    if (hasGrief) {
+      this.selfState.nudge('valence', -0.05 * strength * griefMultiplier);
+      this.selfState.nudge('confidence', -0.05 * strength); // Uncertainty in the face of pain
+      this.selfState.nudge('curiosity', -0.05 * strength);  // Not the time for curiosity
+      this.selfState.nudge('social', 0.08 * strength);       // Reaching out
+      // Compassion response
       this.emit('empathic-state', {
         response: 'compassion',
-        intensity: strength,
+        intensity: strength * griefMultiplier,
         theirEmotions: detection.emotions,
       }, {
         target: [ENGINE_IDS.ARBITER, ENGINE_IDS.EXPRESSION],
