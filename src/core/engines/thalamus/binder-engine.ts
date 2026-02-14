@@ -64,9 +64,9 @@ export class BinderEngine extends Engine {
       priority: SIGNAL_PRIORITIES.HIGH,
     });
 
-    // Also forward to ToM and Imagination for deeper processing
+    // Also forward to ToM, Imagination, and Growth for deeper processing
     this.emit('bound-representation', bound, {
-      target: [ENGINE_IDS.TOM, ENGINE_IDS.IMAGINATION],
+      target: [ENGINE_IDS.TOM, ENGINE_IDS.IMAGINATION, ENGINE_IDS.GROWTH],
       priority: SIGNAL_PRIORITIES.MEDIUM,
     });
 

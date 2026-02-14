@@ -34,6 +34,9 @@ const EMOTION_PATTERNS: Array<{ pattern: RegExp; emotion: string; valence: numbe
 ];
 
 export class EmotionInferenceEngine extends Engine {
+  private lastHaikuCall = 0;
+  private haikuCooldown = 2000; // 2s between Haiku calls
+
   constructor() {
     super(ENGINE_IDS.EMOTION_INFERENCE);
   }
@@ -52,15 +55,27 @@ export class EmotionInferenceEngine extends Engine {
       const detection = this.detectEmotions(perception.content);
 
       if (detection.emotions.length > 0) {
-        // Emit to person state engine
+        // Emit to person state engine, empathic coupling, AND arbiter
         this.emit('emotion-detected', detection, {
-          target: [ENGINE_IDS.PERSON_STATE, ENGINE_IDS.EMPATHIC_COUPLING],
+          target: [ENGINE_IDS.PERSON_STATE, ENGINE_IDS.EMPATHIC_COUPLING, ENGINE_IDS.ARBITER],
           priority: SIGNAL_PRIORITIES.MEDIUM,
         });
 
         this.debugInfo = `Detected: ${detection.emotions.join(', ')} (v:${detection.valence.toFixed(2)})`;
       } else {
         this.debugInfo = 'No strong emotion detected';
+      }
+
+      // Fire-and-forget Haiku call for high-salience or ambiguous input
+      const now = Date.now();
+      const shouldCallHaiku =
+        now - this.lastHaikuCall > this.haikuCooldown &&
+        perception.content.length > 10 &&
+        (perception.salience > 0.5 || detection.emotions.length === 0);
+
+      if (shouldCallHaiku) {
+        this.lastHaikuCall = now;
+        this.detectWithHaiku(perception.content, detection);
       }
     }
     this.status = 'idle';
@@ -86,5 +101,40 @@ export class EmotionInferenceEngine extends Engine {
       arousal: totalArousal / count,
       confidence: Math.min(1, detected.length * 0.3),
     };
+  }
+
+  private async detectWithHaiku(text: string, regexResult: EmotionDetection): Promise<void> {
+    try {
+      const response = await fetch('/api/mind/detect-emotion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) return;
+
+      const haiku = (await response.json()) as EmotionDetection;
+
+      // Merge: union of emotions, use Haiku values if more confident
+      const mergedEmotions = [...new Set([...regexResult.emotions, ...haiku.emotions])];
+      const useHaiku = haiku.confidence > regexResult.confidence;
+
+      const merged: EmotionDetection = {
+        emotions: mergedEmotions,
+        valence: useHaiku ? haiku.valence : regexResult.valence,
+        arousal: useHaiku ? haiku.arousal : regexResult.arousal,
+        confidence: Math.max(regexResult.confidence, haiku.confidence),
+      };
+
+      // Emit supplemental detection with Haiku results
+      this.emit('emotion-detected', merged, {
+        target: [ENGINE_IDS.PERSON_STATE, ENGINE_IDS.EMPATHIC_COUPLING, ENGINE_IDS.ARBITER],
+        priority: SIGNAL_PRIORITIES.MEDIUM,
+      });
+
+      this.debugInfo = `Haiku: ${merged.emotions.join(', ')} (v:${merged.valence.toFixed(2)}, c:${merged.confidence.toFixed(2)})`;
+    } catch {
+      // Fire-and-forget — don't let failures affect the pipeline
+    }
   }
 }

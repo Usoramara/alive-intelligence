@@ -8,6 +8,10 @@ interface ActionDecision {
   context: string[];
   selfState: SelfState;
   timestamp: number;
+  empathicState?: { mirroring: string; coupling: number; resonance: string };
+  tomInference?: { theyFeel: string; theyWant: string; theyBelieve: string };
+  recentMemories?: string[];
+  detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
 }
 
 interface ConversationEntry {
@@ -61,6 +65,10 @@ export class ThoughtBridge {
           context: decision.context,
           selfState: decision.selfState,
           conversationHistory: this.conversationHistory.slice(0, -1), // Exclude current
+          empathicState: decision.empathicState,
+          tomInference: decision.tomInference,
+          recentMemories: decision.recentMemories,
+          detectedEmotions: decision.detectedEmotions,
         }),
       });
 
@@ -76,11 +84,11 @@ export class ThoughtBridge {
         content: result.text,
       });
 
-      // Inject response back into signal bus
+      // Inject response back into signal bus — target both ARBITER and GROWTH
       this.bus.emit({
         type: 'claude-response',
         source: ENGINE_IDS.ARBITER,
-        target: ENGINE_IDS.ARBITER,
+        target: [ENGINE_IDS.ARBITER, ENGINE_IDS.GROWTH],
         payload: result,
         priority: SIGNAL_PRIORITIES.HIGH,
       });
@@ -91,7 +99,7 @@ export class ThoughtBridge {
       this.bus.emit({
         type: 'claude-response',
         source: ENGINE_IDS.ARBITER,
-        target: ENGINE_IDS.ARBITER,
+        target: [ENGINE_IDS.ARBITER, ENGINE_IDS.GROWTH],
         payload: {
           text: 'I... lost my train of thought for a moment. Could you say that again?',
           emotionShift: { confidence: -0.1, energy: -0.05 },

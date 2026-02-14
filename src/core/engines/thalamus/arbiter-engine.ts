@@ -16,12 +16,22 @@ interface ActionDecision {
   context: string[];
   selfState: SelfState;
   timestamp: number;
+  empathicState?: { mirroring: string; coupling: number; resonance: string };
+  tomInference?: { theyFeel: string; theyWant: string; theyBelieve: string };
+  recentMemories?: string[];
+  detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
 }
 
 export class ArbiterEngine extends Engine {
   private pendingDecisions: BoundRepresentation[] = [];
   private lastResponseTime = 0;
   private waitingForClaude = false;
+
+  // Stored context from other engines
+  private latestTomInference?: { theyFeel: string; theyWant: string; theyBelieve: string };
+  private latestDetectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
+  private latestMemoryResults: string[] = [];
+  private latestEmpathicState?: { mirroring: string; coupling: number; resonance: string };
 
   constructor() {
     super(ENGINE_IDS.ARBITER);
@@ -35,6 +45,9 @@ export class ArbiterEngine extends Engine {
       'safety-alert',
       'empathic-state',
       'hope-worry-update',
+      'tom-inference',
+      'emotion-detected',
+      'memory-result',
     ];
   }
 
@@ -90,6 +103,15 @@ export class ArbiterEngine extends Engine {
         this.pendingDecisions = [];
         this.waitingForClaude = false;
         this.debugInfo = 'Safety override';
+      } else if (signal.type === 'tom-inference') {
+        this.latestTomInference = signal.payload as typeof this.latestTomInference;
+      } else if (signal.type === 'emotion-detected') {
+        this.latestDetectedEmotions = signal.payload as typeof this.latestDetectedEmotions;
+      } else if (signal.type === 'memory-result') {
+        const memPayload = signal.payload as { items: string[] };
+        this.latestMemoryResults = memPayload.items ?? [];
+      } else if (signal.type === 'empathic-state') {
+        this.latestEmpathicState = signal.payload as typeof this.latestEmpathicState;
       }
     }
 
@@ -113,13 +135,17 @@ export class ArbiterEngine extends Engine {
           priority: SIGNAL_PRIORITIES.LOW,
         });
 
-        // Request Claude thinking via server
+        // Request Claude thinking via server — pack in enriched context
         const actionDecision: ActionDecision = {
           action: 'respond',
           content: decision.content,
           context: decision.context,
           selfState: decision.selfState,
           timestamp: Date.now(),
+          empathicState: this.latestEmpathicState,
+          tomInference: this.latestTomInference,
+          recentMemories: this.latestMemoryResults.length > 0 ? this.latestMemoryResults : undefined,
+          detectedEmotions: this.latestDetectedEmotions,
         };
 
         this.emit('thought', actionDecision, {
