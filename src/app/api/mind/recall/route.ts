@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { extractJSON } from '@/lib/extract-json';
 
 const client = new Anthropic();
 
@@ -44,7 +45,7 @@ Return ONLY valid JSON: {"scores": [0.8, 0.2, 0.9, ...]} matching the order of m
       .map(b => b.text)
       .join('');
 
-    const { scores } = JSON.parse(responseText) as { scores: number[] };
+    const { scores } = JSON.parse(extractJSON(responseText)) as { scores: number[] };
 
     const ranked = candidates
       .map((m, i) => ({ ...m, relevance: scores[i] ?? 0 }))

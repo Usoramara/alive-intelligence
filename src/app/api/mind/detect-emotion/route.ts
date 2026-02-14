@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { extractJSON } from '@/lib/extract-json';
 
 const client = new Anthropic();
 
@@ -38,7 +39,7 @@ Consider sarcasm, context, implicit emotions, and tone. "Fine." after bad news =
       .map(b => b.text)
       .join('');
 
-    const result = JSON.parse(responseText);
+    const result = JSON.parse(extractJSON(responseText));
     return NextResponse.json(result);
   } catch (error) {
     console.error('Detect emotion API error:', error);
