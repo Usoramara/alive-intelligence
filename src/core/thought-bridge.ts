@@ -13,6 +13,7 @@ interface ActionDecision {
   recentMemories?: string[];
   detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
   strategicPriority?: { description: string; priority: number; progress: number };
+  recentInnerThoughts?: string[];
 }
 
 interface ConversationEntry {
@@ -93,6 +94,7 @@ export class ThoughtBridge {
           recentMemories: decision.recentMemories,
           detectedEmotions: decision.detectedEmotions,
           strategicPriority: decision.strategicPriority,
+          recentInnerThoughts: decision.recentInnerThoughts,
         }),
       });
 

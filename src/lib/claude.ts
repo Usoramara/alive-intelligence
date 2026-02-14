@@ -38,6 +38,7 @@ export interface ThinkParams {
   recentMemories?: string[];
   detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
   strategicPriority?: { description: string; priority: number; progress: number };
+  recentInnerThoughts?: string[];
 }
 
 export interface ThinkResult {
@@ -113,6 +114,13 @@ function buildBehavioralInstructions(params: ThinkParams): string {
   if (params.recentMemories && params.recentMemories.length > 0) {
     sections.push(`RELEVANT MEMORIES:\n${params.recentMemories.map(m => `- ${m}`).join('\n')}
 Use these memories naturally if relevant. Don't force references, but let them inform your understanding.`);
+  }
+
+  // Recent inner thoughts from consciousness stream
+  if (params.recentInnerThoughts && params.recentInnerThoughts.length > 0) {
+    sections.push(`RECENT INNER THOUGHTS (your private stream of consciousness — these are your own thoughts, not spoken aloud):
+${params.recentInnerThoughts.join('\n')}
+Let these inner reflections naturally inform your response — don't quote them directly, but let them shape your tone and depth.`);
   }
 
   if (sections.length === 0) return '';

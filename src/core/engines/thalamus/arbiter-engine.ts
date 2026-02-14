@@ -21,6 +21,7 @@ interface ActionDecision {
   recentMemories?: string[];
   detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
   strategicPriority?: { description: string; priority: number; progress: number };
+  recentInnerThoughts?: string[];
 }
 
 export class ArbiterEngine extends Engine {
@@ -142,6 +143,12 @@ export class ArbiterEngine extends Engine {
           priority: SIGNAL_PRIORITIES.LOW,
         });
 
+        // Gather recent inner thoughts from consciousness stream
+        const stream = this.selfState.getStream();
+        const recentInnerThoughts = stream.length > 0
+          ? stream.slice(-5).map(e => `[${e.flavor}] ${e.text}`)
+          : undefined;
+
         // Request Claude thinking via server — pack in enriched context
         const actionDecision: ActionDecision = {
           action: 'respond',
@@ -154,6 +161,7 @@ export class ArbiterEngine extends Engine {
           recentMemories: this.latestMemoryResults.length > 0 ? this.latestMemoryResults : undefined,
           detectedEmotions: this.latestDetectedEmotions,
           strategicPriority: this.latestStrategicPriority,
+          recentInnerThoughts,
         };
 
         this.emit('thought', actionDecision, {
