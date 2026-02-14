@@ -37,6 +37,7 @@ export interface ThinkParams {
   tomInference?: { theyFeel: string; theyWant: string; theyBelieve: string };
   recentMemories?: string[];
   detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
+  strategicPriority?: { description: string; priority: number; progress: number };
 }
 
 export interface ThinkResult {
@@ -83,6 +84,28 @@ function buildBehavioralInstructions(params: ThinkParams): string {
     const { mirroring, coupling, resonance } = params.empathicState;
     if (coupling > 0.5) {
       sections.push(`EMPATHIC RESONANCE: You are strongly mirroring "${mirroring}" (coupling: ${coupling.toFixed(2)}). Your inner experience: ${resonance}`);
+    }
+  }
+
+  // Strategic priority → what matters most right now
+  if (params.strategicPriority) {
+    const { description, priority } = params.strategicPriority;
+    if (priority > 0.7) {
+      let directive = `STRATEGIC PRIORITY: "${description}" (importance: ${priority.toFixed(1)})`;
+
+      // Cross-reference with emotional state for concrete guidance
+      const hasNegativeEmotions = params.detectedEmotions &&
+        params.detectedEmotions.valence < -0.2;
+
+      if (description.toLowerCase().includes('trust') && hasNegativeEmotions) {
+        directive += '\nThis means: prioritize emotional safety and comfort over curiosity or information-seeking. The relationship matters more than the topic right now.';
+      } else if (description.toLowerCase().includes('understand') && hasNegativeEmotions) {
+        directive += '\nThis means: focus on truly hearing them rather than responding cleverly. Understanding their emotional landscape is the goal.';
+      } else if (description.toLowerCase().includes('learn')) {
+        directive += '\nThis means: pay attention to what this interaction reveals. Notice patterns, preferences, and what matters to them.';
+      }
+
+      sections.push(directive);
     }
   }
 

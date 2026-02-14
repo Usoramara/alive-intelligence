@@ -20,6 +20,7 @@ interface ActionDecision {
   tomInference?: { theyFeel: string; theyWant: string; theyBelieve: string };
   recentMemories?: string[];
   detectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
+  strategicPriority?: { description: string; priority: number; progress: number };
 }
 
 export class ArbiterEngine extends Engine {
@@ -32,6 +33,7 @@ export class ArbiterEngine extends Engine {
   private latestDetectedEmotions?: { emotions: string[]; valence: number; arousal: number; confidence: number };
   private latestMemoryResults: string[] = [];
   private latestEmpathicState?: { mirroring: string; coupling: number; resonance: string };
+  private latestStrategicPriority?: { description: string; priority: number; progress: number };
 
   constructor() {
     super(ENGINE_IDS.ARBITER);
@@ -48,6 +50,7 @@ export class ArbiterEngine extends Engine {
       'tom-inference',
       'emotion-detected',
       'memory-result',
+      'strategy-update',
     ];
   }
 
@@ -112,6 +115,9 @@ export class ArbiterEngine extends Engine {
         this.latestMemoryResults = memPayload.items ?? [];
       } else if (signal.type === 'empathic-state') {
         this.latestEmpathicState = signal.payload as typeof this.latestEmpathicState;
+      } else if (signal.type === 'strategy-update') {
+        const strategy = signal.payload as { currentPriority: { description: string; priority: number; progress: number } };
+        this.latestStrategicPriority = strategy.currentPriority;
       }
     }
 
@@ -146,6 +152,7 @@ export class ArbiterEngine extends Engine {
           tomInference: this.latestTomInference,
           recentMemories: this.latestMemoryResults.length > 0 ? this.latestMemoryResults : undefined,
           detectedEmotions: this.latestDetectedEmotions,
+          strategicPriority: this.latestStrategicPriority,
         };
 
         this.emit('thought', actionDecision, {
