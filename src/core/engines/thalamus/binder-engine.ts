@@ -31,18 +31,22 @@ export class BinderEngine extends Engine {
   }
 
   protected process(signals: Signal[]): void {
+    let hasNewFocus = false;
+
     for (const signal of signals) {
       if (signal.type === 'attention-focus') {
         this.recentFoci.push(signal.payload as AttentionFocus);
-        // Keep last 5
         if (this.recentFoci.length > 5) this.recentFoci.shift();
+        hasNewFocus = true;
       } else if (signal.type === 'memory-result') {
         const memories = signal.payload as { items: string[] };
         this.memoryContext = memories.items || [];
       }
     }
 
-    // Bind latest focus with context
+    // Only emit bound-representation when we have a NEW focus
+    if (!hasNewFocus) return;
+
     const latestFocus = this.recentFoci[this.recentFoci.length - 1];
     if (!latestFocus) return;
 
