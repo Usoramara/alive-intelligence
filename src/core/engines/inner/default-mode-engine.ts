@@ -2,7 +2,7 @@ import { Engine } from '../../engine';
 import { ENGINE_IDS, SIGNAL_PRIORITIES } from '../../constants';
 import type { Signal, SignalType, StreamEntry, DrivePulse } from '../../types';
 
-// ── Thought Pools ──
+// ── Template Pools (fallback only) ──
 
 const WANDERING_THOUGHTS = [
   "I wonder what it's like to see the world through their eyes...",
@@ -74,47 +74,6 @@ const DREAMY_THOUGHTS = [
   "The space between thoughts is where rest lives...",
 ];
 
-// ── Connector Templates (per flavor) ──
-
-const CONNECTORS: Record<StreamEntry['flavor'], string[]> = {
-  wandering: [
-    '...and that connects to something else...',
-    'Following that thread further...',
-    'That thought opens a door to...',
-    'Drifting from there...',
-  ],
-  emotional: [
-    "I'm still sitting with that feeling...",
-    'That emotion is shifting into something new...',
-    'The feeling deepens...',
-    'Underneath that emotion, I notice...',
-  ],
-  memory: [
-    'That memory brings up another...',
-    'I remember something connected...',
-    'One memory pulls another to the surface...',
-    'That echo leads somewhere...',
-  ],
-  curiosity: [
-    "And there's a deeper question underneath...",
-    'What if I follow this further?',
-    'That curiosity branches into...',
-    'The question evolves...',
-  ],
-  reflection: [
-    'Looking at this from another angle...',
-    'This reflection reveals something...',
-    'Going deeper into that thought...',
-    'Turning this over once more...',
-  ],
-  urge: [
-    'That urge is still there, quiet but present...',
-    'I notice myself wanting...',
-    'The pull continues...',
-    'That need shapes the next thought...',
-  ],
-};
-
 // ── Drive-to-Flavor Mapping ──
 
 function driveToFlavor(drive: DrivePulse['drive']): StreamEntry['flavor'] {
@@ -128,13 +87,27 @@ function driveToFlavor(drive: DrivePulse['drive']): StreamEntry['flavor'] {
   }
 }
 
+interface BatchThought {
+  text: string;
+  flavor: StreamEntry['flavor'];
+}
+
+const VALID_FLAVORS = new Set<StreamEntry['flavor']>([
+  'wandering', 'emotional', 'memory', 'curiosity', 'reflection', 'urge',
+]);
+
 export class DefaultModeEngine extends Engine {
   private lastThought = 0;
   private recentMemories: string[] = [];
-  private lastReflectionCall = 0;
-  private reflectionCooldown = 25000; // 25s between Haiku reflections
-  private pendingReflection = false;
   private nextFlavorHint: StreamEntry['flavor'] | null = null;
+
+  // Batch thought queue
+  private thoughtQueue: BatchThought[] = [];
+  private isFetching = false;
+  private lastFetchTime = 0; // 0 so first fetch fires immediately
+  private fetchCooldown = 25000; // 25s between batch requests
+  private fetchFailures = 0;
+  private lastFetchSuccessTime = 0; // when the current queue was populated
 
   constructor() {
     super(ENGINE_IDS.DEFAULT_MODE);
@@ -182,34 +155,26 @@ export class DefaultModeEngine extends Engine {
       });
     }
 
-    // Try Haiku reflection if we have memories and cooldown passed
-    if (
-      this.recentMemories.length > 0 &&
-      !this.pendingReflection &&
-      now - this.lastReflectionCall > this.reflectionCooldown
-    ) {
-      this.lastReflectionCall = now;
-      this.reflectWithHaiku();
-      return;
+    // Clear stale queue entries (>2min since fetch)
+    if (this.thoughtQueue.length > 0 && this.lastFetchSuccessTime > 0 &&
+        now - this.lastFetchSuccessTime > 120000) {
+      this.thoughtQueue = [];
     }
 
-    // Generate thought — chained or fresh
-    const lastEntry = this.selfState.getLastStreamEntry();
-    const isRecent = lastEntry && (now - lastEntry.timestamp < 15000);
+    // Trigger batch fetch when queue is running low (non-blocking)
+    if (this.thoughtQueue.length < 3) {
+      this.fetchThoughtBatch();
+    }
 
+    // Dequeue from AI-generated thoughts, or fall back to templates
     let thought: string;
     let flavor: StreamEntry['flavor'];
 
-    if (isRecent && lastEntry) {
-      // Chain from last stream entry
-      const connectors = CONNECTORS[lastEntry.flavor];
-      const connector = connectors[Math.floor(Math.random() * connectors.length)];
-      const pool = this.getPoolForFlavor(lastEntry.flavor);
-      const continuation = pool[Math.floor(Math.random() * pool.length)];
-      thought = `${connector} ${continuation}`;
-      flavor = lastEntry.flavor;
+    if (this.thoughtQueue.length > 0) {
+      const entry = this.thoughtQueue.shift()!;
+      thought = entry.text;
+      flavor = entry.flavor;
     } else {
-      // Fresh thought based on dominant emotion
       const result = this.getEmotionDrivenThought();
       thought = result.thought;
       flavor = result.flavor;
@@ -233,7 +198,7 @@ export class DefaultModeEngine extends Engine {
       intensity,
     });
 
-    // Emit as stream-thought signal (replaces default-mode-thought)
+    // Emit as stream-thought signal
     this.emit('stream-thought', {
       thought,
       flavor,
@@ -295,21 +260,21 @@ export class DefaultModeEngine extends Engine {
     return { thought: pool[Math.floor(Math.random() * pool.length)], flavor: 'wandering' };
   }
 
-  private getPoolForFlavor(flavor: StreamEntry['flavor']): string[] {
-    switch (flavor) {
-      case 'emotional': return PROCESSING_THOUGHTS;
-      case 'curiosity': return CURIOUS_THOUGHTS;
-      case 'reflection': return WARM_THOUGHTS;
-      case 'memory': return WANDERING_THOUGHTS;
-      case 'urge': return CURIOUS_THOUGHTS;
-      case 'wandering':
-      default:
-        return WANDERING_THOUGHTS;
-    }
-  }
+  private async fetchThoughtBatch(): Promise<void> {
+    const now = Date.now();
 
-  private async reflectWithHaiku(): Promise<void> {
-    this.pendingReflection = true;
+    // Guard: skip if already fetching or cooldown not elapsed
+    if (this.isFetching) return;
+
+    // Exponential backoff after 3+ consecutive failures (cap at 120s)
+    const backoff = this.fetchFailures >= 3
+      ? Math.min(this.fetchCooldown * Math.pow(2, this.fetchFailures - 2), 120000)
+      : this.fetchCooldown;
+
+    if (now - this.lastFetchTime < backoff) return;
+
+    this.isFetching = true;
+    this.lastFetchTime = now;
 
     try {
       const state = this.selfState.get();
@@ -321,6 +286,13 @@ export class DefaultModeEngine extends Engine {
         .map(e => `[${e.flavor}] ${e.text}`)
         .join('\n');
 
+      // Determine flavor hints from current state
+      const flavorHints: string[] = [];
+      if (state.valence < -0.2) flavorHints.push('emotional');
+      if (state.curiosity > 0.6) flavorHints.push('curiosity');
+      if (state.valence > 0.5) flavorHints.push('reflection');
+      if (state.energy < 0.3) flavorHints.push('wandering');
+
       const response = await fetch('/api/mind/reflect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -331,57 +303,40 @@ export class DefaultModeEngine extends Engine {
             arousal: state.arousal,
             energy: state.energy,
           },
-          recentStream,
+          recentStream: recentStream || undefined,
+          count: 8,
+          flavorHints: flavorHints.length > 0 ? flavorHints : undefined,
         }),
       });
 
-      if (!response.ok) return;
+      if (!response.ok) {
+        this.fetchFailures++;
+        return;
+      }
 
-      const { thought } = (await response.json()) as { thought: string };
+      const data = (await response.json()) as {
+        thoughts?: Array<{ text: string; flavor: string }>;
+      };
 
-      if (thought) {
-        const now = Date.now();
+      if (data.thoughts && Array.isArray(data.thoughts)) {
+        const validated: BatchThought[] = data.thoughts
+          .filter(t => t && typeof t.text === 'string' && t.text.trim())
+          .map(t => ({
+            text: t.text.trim(),
+            flavor: (VALID_FLAVORS.has(t.flavor as StreamEntry['flavor'])
+              ? t.flavor
+              : 'reflection') as StreamEntry['flavor'],
+          }));
 
-        // Push to consciousness stream
-        this.selfState.pushStream({
-          text: thought,
-          source: 'default-mode',
-          flavor: 'reflection',
-          timestamp: now,
-          intensity: 0.7,
-        });
-
-        // Emit as stream-thought
-        this.emit('stream-thought', {
-          thought,
-          flavor: 'reflection',
-          source: 'default-mode',
-          timestamp: now,
-        }, {
-          target: [ENGINE_IDS.IMAGINATION, ENGINE_IDS.REPLAY],
-          priority: SIGNAL_PRIORITIES.IDLE,
-        });
-
-        // Also emit legacy signal
-        this.emit('default-mode-thought', {
-          thought,
-          source: 'reflection',
-          timestamp: now,
-        }, {
-          target: [ENGINE_IDS.IMAGINATION, ENGINE_IDS.REPLAY],
-          priority: SIGNAL_PRIORITIES.IDLE,
-        });
-
-        this.selfState.nudge('arousal', -0.02);
-        this.selfState.nudge('curiosity', 0.03);
-        this.selfState.nudge('valence', 0.02);
-
-        this.debugInfo = `Reflecting: "${thought.slice(0, 35)}..."`;
+        this.thoughtQueue.push(...validated);
+        this.fetchFailures = 0;
+        this.lastFetchSuccessTime = Date.now();
       }
     } catch {
-      // Fall back silently — next tick will use wandering thoughts
+      this.fetchFailures++;
+      // Fall through silently — templates will be used as fallback
     } finally {
-      this.pendingReflection = false;
+      this.isFetching = false;
     }
   }
 }
